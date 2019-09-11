@@ -5,7 +5,7 @@ const Alexa = require('ask-sdk-core');
 
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
+        return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
     },
     handle(handlerInput) {
         const speechText = 'Hello! Welcome to Cake Walk. That was a piece of cake! Bye!';
@@ -17,8 +17,8 @@ const LaunchRequestHandler = {
 };
 const HelloWorldIntentHandler = {
     canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'HelloWorldIntent';
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && handlerInput.requestEnvelope.request.intent.name === 'HelloWorldIntent';
     },
     handle(handlerInput) {
         const speechText = 'Hello World!';
@@ -30,8 +30,8 @@ const HelloWorldIntentHandler = {
 };
 const HelpIntentHandler = {
     canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent';
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && handlerInput.requestEnvelope.request.intent.name === 'AMAZON.HelpIntent';
     },
     handle(handlerInput) {
         const speechText = 'You can say hello to me! How can I help?';
@@ -44,9 +44,9 @@ const HelpIntentHandler = {
 };
 const CancelAndStopIntentHandler = {
     canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-            && (Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.CancelIntent'
-                || Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent');
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+            && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.CancelIntent'
+                || handlerInput.requestEnvelope.request.intent.name === 'AMAZON.StopIntent');
     },
     handle(handlerInput) {
         const speechText = 'Goodbye!';
@@ -57,7 +57,7 @@ const CancelAndStopIntentHandler = {
 };
 const SessionEndedRequestHandler = {
     canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'SessionEndedRequest';
+        return handlerInput.requestEnvelope.request.type === 'SessionEndedRequest';
     },
     handle(handlerInput) {
         // Any cleanup logic goes here.
@@ -71,10 +71,10 @@ const SessionEndedRequestHandler = {
 // handler chain below.
 const IntentReflectorHandler = {
     canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest';
+        return handlerInput.requestEnvelope.request.type === 'IntentRequest';
     },
     handle(handlerInput) {
-        const intentName = Alexa.getIntentName(handlerInput.requestEnvelope);
+        const intentName = handlerInput.requestEnvelope.request.intent.name;
         const speechText = `You just triggered ${intentName}`;
 
         return handlerInput.responseBuilder
@@ -92,8 +92,8 @@ const ErrorHandler = {
         return true;
     },
     handle(handlerInput, error) {
-        console.log(`~~~~ Error handled: ${error.stack}`);
-        const speechText = `Sorry, I had trouble doing what you asked. Please try again.`;
+        console.log(`~~~~ Error handled: ${error.message}`);
+        const speechText = `Sorry, I couldn't understand what you said. Please try again.`;
 
         return handlerInput.responseBuilder
             .speak(speechText)
@@ -102,7 +102,7 @@ const ErrorHandler = {
     }
 };
 
-// The SkillBuilder acts as the entry point for your skill, routing all request and response
+// This handler acts as the entry point for your skill, routing all request and response
 // payloads to the handlers above. Make sure any new handlers or interceptors you've
 // defined are included below. The order matters - they're processed top to bottom.
 exports.handler = Alexa.SkillBuilders.custom()
@@ -112,9 +112,7 @@ exports.handler = Alexa.SkillBuilders.custom()
         HelpIntentHandler,
         CancelAndStopIntentHandler,
         SessionEndedRequestHandler,
-        IntentReflectorHandler, // make sure IntentReflectorHandler is last so it doesn't override your custom intent handlers
-    )
+        IntentReflectorHandler) // make sure IntentReflectorHandler is last so it doesn't override your custom intent handlers
     .addErrorHandlers(
-        ErrorHandler,
-    )
+        ErrorHandler)
     .lambda();
