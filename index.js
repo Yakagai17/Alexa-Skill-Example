@@ -8,20 +8,25 @@ const LaunchRequestHandler = {
         return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
     },
     handle(handlerInput) {
-        const speechText = 'Hello! Welcome to Cake Walk. That was a piece of cake! Bye!';
+        const speechText = 'Hello! Welcome to Cake Walk. When is your birthday?';
+        const repromptText = 'I was born November sixth, two thousand forteen. When were you born?';
         return handlerInput.responseBuilder
             .speak(speechText)
-            //.reprompt(speechText)
+            .reprompt(repromptText)
             .getResponse();
     }
 };
-const HelloWorldIntentHandler = {
+
+const CaptureBirthdayIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
-            && handlerInput.requestEnvelope.request.intent.name === 'HelloWorldIntent';
+            && handlerInput.requestEnvelope.request.intent.name === 'CaptureBirthdayIntent';
     },
     handle(handlerInput) {
-        const speechText = 'Hello World!';
+        const year = handlerInput.requestEnvelope.request.intent.slots.year.value;
+        const month = handlerInput.requestEnvelope.request.intent.slots.month.value;
+        const day = handlerInput.requestEnvelope.request.intent.slots.day.value;
+        const speechText = `Thanks, I'll remember that your birthday is ${month} ${day} ${year}.`;
         return handlerInput.responseBuilder
             .speak(speechText)
             //.reprompt('add a reprompt if you want to keep the session open for the user to respond')
@@ -108,7 +113,7 @@ const ErrorHandler = {
 exports.handler = Alexa.SkillBuilders.custom()
     .addRequestHandlers(
         LaunchRequestHandler,
-        HelloWorldIntentHandler,
+        CaptureBirthdayIntentHandler,
         HelpIntentHandler,
         CancelAndStopIntentHandler,
         SessionEndedRequestHandler,
