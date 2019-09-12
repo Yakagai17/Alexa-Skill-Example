@@ -2,37 +2,86 @@
 // Please visit https://alexa.design/cookbook for additional examples on implementing slots, dialog management,
 // session persistence, api calls, and more.
 const Alexa = require('ask-sdk-core');
+const persistenceAdapter = require('ask-sdk-s3-persistence-adapter');
 
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
     },
     handle(handlerInput) {
-        const speechText = 'Hello! Welcome to Cake Walk. When is your birthday?';
-        const repromptText = 'I was born November sixth, two thousand forteen. When were you born?';
+        const speechText = 'Hello! I am Cake Walk. When is your birthday?';
+	const repromptText = 'I was born November sixth, two thousand forteen. When were you born?';    
+
         return handlerInput.responseBuilder
             .speak(speechText)
             .reprompt(repromptText)
             .getResponse();
     }
 };
-
+const HasBirthdayLaunchRequestHandler = {
+    canHandle(handlerInput) {
+        
+        const attributesManager = handlerInput.attributesManager;
+        const sessionAttributes = attributesManager.getSessionAttributes() || {};
+        
+        const year = sessionAttributes.hasOwnProperty('year') ? sessionAttributes.year : 0;
+        const month = sessionAttributes.hasOwnProperty('month') ? sessionAttributes.month : 0;
+        const day = sessionAttributes.hasOwnProperty('day') ? sessionAttributes.day : 0;
+        
+        return handlerInput.requestEnvelope.request.type === 'LaunchRequest' &&
+            year &&
+            month &&
+            day;
+        
+    },
+    handle(handlerInput) {
+        
+        const attributesManager = handlerInput.attributesManager;
+        const sessionAttributes = attributesManager.getSessionAttributes() || {};
+        
+        const year = sessionAttributes.hasOwnProperty('year') ? sessionAttributes.year : 0;
+        const month = sessionAttributes.hasOwnProperty('month') ? sessionAttributes.month : 0;
+        const day = sessionAttributes.hasOwnProperty('day') ? sessionAttributes.day : 0;
+        
+        // TODO:: Use the settings API to get current date and then compute how many days until user's birthday
+        // TODO:: Say Happy birthday on the user's birthday
+        
+        const speechText = `Welcome back. It looks like there are X more days until your y-th birthday.`;
+        
+        return handlerInput.responseBuilder
+            .speak(speechText)
+            .getResponse();
+    }
+};
 const CaptureBirthdayIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
             && handlerInput.requestEnvelope.request.intent.name === 'CaptureBirthdayIntent';
     },
-    handle(handlerInput) {
+    async handle(handlerInput) {
         const year = handlerInput.requestEnvelope.request.intent.slots.year.value;
         const month = handlerInput.requestEnvelope.request.intent.slots.month.value;
         const day = handlerInput.requestEnvelope.request.intent.slots.day.value;
-        const speechText = `Thanks, I'll remember that your birthday is ${month} ${day} ${year}.`;
+        
+        const attributesManager = handlerInput.attributesManager;
+        
+        const birthdayAttributes = {
+            "year": year,
+            "month": month,
+            "day": day
+            
+        };
+        attributesManager.setPersistentAttributes(birthdayAttributes);
+        await attributesManager.savePersistentAttributes();    
+        
+        const speechText = `Thanks, I'll remember that you were born ${month} ${day} ${year}.`;
         return handlerInput.responseBuilder
             .speak(speechText)
             //.reprompt('add a reprompt if you want to keep the session open for the user to respond')
             .getResponse();
     }
 };
+
 const HelpIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
@@ -107,17 +156,39 @@ const ErrorHandler = {
     }
 };
 
+const LoadBirthdayInterceptor = {
+    async process(handlerInput) {
+        const attributesManager = handlerInput.attributesManager;
+        const sessionAttributes = await attributesManager.getPersistentAttributes() || {};
+        
+        const year = sessionAttributes.hasOwnProperty('year') ? sessionAttributes.year : 0;
+        const month = sessionAttributes.hasOwnProperty('month') ? sessionAttributes.month : 0;
+        const day = sessionAttributes.hasOwnProperty('day') ? sessionAttributes.day : 0;
+        
+        if (year && month && day) {
+            attributesManager.setSessionAttributes(sessionAttributes);
+        }
+    }
+}
+
 // This handler acts as the entry point for your skill, routing all request and response
 // payloads to the handlers above. Make sure any new handlers or interceptors you've
 // defined are included below. The order matters - they're processed top to bottom.
 exports.handler = Alexa.SkillBuilders.custom()
+    .withPersistenceAdapter(
+        new persistenceAdapter.S3PersistenceAdapter({bucketName:process.env.S3_PERSISTENCE_BUCKET})
+    )
     .addRequestHandlers(
+        HasBirthdayLaunchRequestHandler,
         LaunchRequestHandler,
         CaptureBirthdayIntentHandler,
         HelpIntentHandler,
         CancelAndStopIntentHandler,
         SessionEndedRequestHandler,
         IntentReflectorHandler) // make sure IntentReflectorHandler is last so it doesn't override your custom intent handlers
+    .addRequestInterceptors(
+        LoadBirthdayInterceptor
+    )
     .addErrorHandlers(
         ErrorHandler)
     .lambda();
