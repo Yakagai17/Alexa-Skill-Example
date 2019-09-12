@@ -9,15 +9,15 @@ const LaunchRequestHandler = {
         return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
     },
     handle(handlerInput) {
-        const speechText = 'Hello! I am Cake Walk. When is your birthday?';
-	const repromptText = 'I was born November sixth, two thousand forteen. When were you born?';    
-
+        const speechText = 'Hello! Welcome to Cake Walk. When is your birthday?';
+        const repromptText = 'I was born November sixth, two thousand forteen. When were you born?';
         return handlerInput.responseBuilder
             .speak(speechText)
             .reprompt(repromptText)
             .getResponse();
     }
 };
+
 const HasBirthdayLaunchRequestHandler = {
     canHandle(handlerInput) {
         
@@ -35,6 +35,28 @@ const HasBirthdayLaunchRequestHandler = {
         
     },
     async handle(handlerInput) {
+        const serviceClientFactory = handlerInput.serviceClientFactory; 
+        const deviceId = handlerInput.requestEnvelope.context.System.device.deviceId;
+        const attributesManager = handlerInput.attributesManager;
+        const sessionAttributes = attributesManager.getSessionAttributes() || {};
+        
+        const year = sessionAttributes.hasOwnProperty('year') ? sessionAttributes.year : 0;
+        const month = sessionAttributes.hasOwnProperty('month') ? sessionAttributes.month : 0;
+        const day = sessionAttributes.hasOwnProperty('day') ? sessionAttributes.day : 0;
+        
+        let userTimeZone;
+        try {
+            const upsServiceClient = serviceClientFactory.getUpsServiceClient();
+            userTimeZone = await upsServiceClient.getSystemTimeZone(deviceId);
+        } catch (error) {
+            if (error.name !== 'ServiceError') {
+                return handlerInput.responseBuilder.speak("There was a problem connecting to the service.").getResponse();
+            }
+            console.log('error', error.message);
+        }
+        
+        // getting the current date with the time
+        const currentDateTime = new Date(new Date().toLocaleString("en-US", {timeZone: userTimeZone}));
         
         // removing the time from the date because it affects our difference calculation
         const currentDate = new Date(currentDateTime.getFullYear(), currentDateTime.getMonth(), currentDateTime.getDate());
@@ -48,31 +70,6 @@ const HasBirthdayLaunchRequestHandler = {
             nextBirthday = Date.parse(`${month} ${day}, ${currentYear + 1}`);
         }
         
-        const attributesManager = handlerInput.attributesManager;
-        const deviceId = handlerInput.requestEnvelope.context.System.device.deviceId;
-        const serviceClientFactory = handlerInput.serviceClientFactory; 
-
-
-        const sessionAttributes = attributesManager.getSessionAttributes() || {};
-        
-        const year = sessionAttributes.hasOwnProperty('year') ? sessionAttributes.year : 0;
-        const month = sessionAttributes.hasOwnProperty('month') ? sessionAttributes.month : 0;
-        const day = sessionAttributes.hasOwnProperty('day') ? sessionAttributes.day : 0;
-
-        let userTimeZone;
-        try {
-            const upsServiceClient = serviceClientFactory.getUpsServiceClient();
-            userTimeZone = await upsServiceClient.getSystemTimeZone(deviceId);
-        } catch (error) {
-            if (error.name !== 'ServiceError') {
-                return handlerInput.responseBuilder.speak("There was a problem connecting to the service.").getResponse();
-            }
-            console.log('error', error.message);
-        }
-        
-        // TODO:: Use the settings API to get current date and then compute how many days until user's birthday
-        // TODO:: Say Happy birthday on the user's birthday
-        
         const oneDay = 24*60*60*1000;
 
         // setting the default speechText to Happy xth Birthday!
@@ -82,9 +79,6 @@ const HasBirthdayLaunchRequestHandler = {
             const diffDays = Math.round(Math.abs((currentDate.getTime() - nextBirthday)/oneDay));
             speechText = `Welcome back. It looks like there are ${diffDays} days until your ${currentYear - year}th birthday.`
         }
-        
-        // getting the current date with the time
-        const currentDateTime = new Date(new Date().toLocaleString("en-US", {timeZone: userTimeZone}));
         
         return handlerInput.responseBuilder
             .speak(speechText)
@@ -103,24 +97,22 @@ const CaptureBirthdayIntentHandler = {
         const day = handlerInput.requestEnvelope.request.intent.slots.day.value;
         
         const attributesManager = handlerInput.attributesManager;
-        
         const birthdayAttributes = {
-            "year": year,
-            "month": month,
-            "day": day
-            
+        "year" : year,
+        "month" : month,
+        "day" : day
         };
-        attributesManager.setPersistentAttributes(birthdayAttributes);
-        await attributesManager.savePersistentAttributes();    
         
-        const speechText = `Thanks, I'll remember that you were born ${month} ${day} ${year}.`;
+        attributesManager.setPersistentAttributes(birthdayAttributes);
+        await attributesManager.savePersistentAttributes();
+        
+        const speechText = `Thanks, I'll remember that your birthday is ${month} ${day} ${year}.`;
         return handlerInput.responseBuilder
             .speak(speechText)
             //.reprompt('add a reprompt if you want to keep the session open for the user to respond')
             .getResponse();
     }
 };
-
 const HelpIntentHandler = {
     canHandle(handlerInput) {
         return handlerInput.requestEnvelope.request.type === 'IntentRequest'
@@ -198,26 +190,28 @@ const ErrorHandler = {
 const LoadBirthdayInterceptor = {
     async process(handlerInput) {
         const attributesManager = handlerInput.attributesManager;
-        const sessionAttributes = await attributesManager.getPersistentAttributes() || {};
-        
-        const year = sessionAttributes.hasOwnProperty('year') ? sessionAttributes.year : 0;
-        const month = sessionAttributes.hasOwnProperty('month') ? sessionAttributes.month : 0;
-        const day = sessionAttributes.hasOwnProperty('day') ? sessionAttributes.day : 0;
-        
+        const sessionAttributes = await
+attributesManager.getPersistentAttributes() || {};
+        const year = sessionAttributes.hasOwnProperty('year') ?
+sessionAttributes.year : 0;
+        const month = sessionAttributes.hasOwnProperty('month') ?
+sessionAttributes.month : 0;
+        const day = sessionAttributes.hasOwnProperty('day') ?
+sessionAttributes.day : 0;
         if (year && month && day) {
-            attributesManager.setSessionAttributes(sessionAttributes);
+           attributesManager.setSessionAttributes(sessionAttributes);
         }
     }
-}
+};
 
 // This handler acts as the entry point for your skill, routing all request and response
 // payloads to the handlers above. Make sure any new handlers or interceptors you've
 // defined are included below. The order matters - they're processed top to bottom.
 exports.handler = Alexa.SkillBuilders.custom()
-    .withApiClient(new Alexa.DefaultApiClient())
-    .withPersistenceAdapter(
-        new persistenceAdapter.S3PersistenceAdapter({bucketName:process.env.S3_PERSISTENCE_BUCKET})
-    )
+.withApiClient(new Alexa.DefaultApiClient())
+.withPersistenceAdapter(
+new persistenceAdapter.S3PersistenceAdapter({bucketName:process.env.S3_PERSISTENCE_BUCKET})
+)
     .addRequestHandlers(
         HasBirthdayLaunchRequestHandler,
         LaunchRequestHandler,
